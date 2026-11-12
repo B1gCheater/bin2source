@@ -1,12 +1,12 @@
 # bin2source
 
-**Turn any file into source code.** Embed images, configuration files, certificates, or other binary assets directly into C, C++, Go, Rust, or Python projects.
+**Turn any file into source code.** Embed images, configuration files, certificates, or other binary assets directly into C, C++, Go, Rust, Python, or Java projects.
 
 `bin2source` converts a file into a language-native byte array or encoded string. The generated source can be compiled or imported with your application, so you can distribute an asset as source instead of as a separate resource file.
 
 ## ✨ Features
 
-- Generate a single source file for **C**, **C++**, **Go**, **Rust**, or **Python**.
+- Generate a single source file for **C**, **C++**, **Go**, **Rust**, **Python**, or **Java**.
 - Optionally compress with raw **DEFLATE** or **Zstandard**.
 - Optionally encrypt with **AES-256-CTR** or **AES-256-CBC** with PKCS#7 padding.
 - Choose whether the encryption IV is stored in the array or only in its source comment.
@@ -22,13 +22,14 @@ Generate a C header from an image:
 bin2source -f assets/logo.png -c
 ```
 
-This creates `logo_png.h` in the current directory. Choose a different target language with exactly one of `-c`, `-cpp`, `-go`, `-rust`, or `-python`:
+This creates `logo_png.h` in the current directory. Choose a different target language with exactly one of `-c`, `-cpp`, `-go`, `-rust`, `-python`, or `-java`:
 
 ```sh
 bin2source -f assets/logo.png -cpp      # logo_png.hpp
 bin2source -f assets/logo.png -go       # logo_png.go
 bin2source -f assets/logo.png -rust     # logo_png.rs
 bin2source -f assets/logo.png -python   # logo_png.py
+bin2source -f assets/logo.png -java     # LogoPng.java
 ```
 
 To put the generated file in a directory, pass that directory to `-o`:
@@ -80,11 +81,12 @@ The native build is written to `bin/`. Cross-compiled binaries include the targe
 | `-go` | Generate a Go source file (`.go`). |
 | `-rust` | Generate a Rust source file (`.rs`). |
 | `-python` | Generate a Python module (`.py`). |
+| `-java` | Generate a Java source file (`.java`). |
 | `-o`, `--output <path>` | Output file or directory. If omitted, the output is written to the current directory. |
 | `-name <identifier>` | Override the identifier derived from the file name. |
-| `-pkg <identifier>` | Set the Go package name or wrap Rust output in a module. Go defaults to `main`; Rust has no module wrapper by default. |
+| `-pkg <identifier>` | Set the Go package name, Java package statement, or wrap Rust output in a module. Go defaults to `main`; Java and Rust have no package/module wrapper by default. |
 
-Specify exactly one target language. By default, the input file name is converted into an ASCII identifier and the language extension is appended; for example, `logo.png` becomes `logo_png.h` for C.
+Specify exactly one target language. By default, the input file name is converted into an ASCII identifier and the language extension is appended; for example, `logo.png` becomes `logo_png.h` for C. Java is the exception: a public class has to live in a file of the same name, so `logo.png` becomes `LogoPng.java` holding `class LogoPng` with constants named `LOGO_PNG`.
 
 ### Compression
 
@@ -121,6 +123,29 @@ bin2source -f assets/logo.png -python --base64 -o generated/
 ```
 
 Base64 is applied after compression and encryption. The generated constant is named with a `_b64` suffix, and its length constant describes the decoded payload size. The consuming application must Base64-decode it before decrypting or decompressing.
+
+### Java notes
+
+Java is the only target that turns the payload into a class rather than a set of
+module-level constants, and the only one where the compiler refuses a
+declaration outright because it carries too much data:
+
+- **The byte array path stops at 8,192 bytes.** javac builds
+  `new byte[] { ... }` one instruction per element inside `<clinit>`, and no
+  method may exceed 65,535 bytes of bytecode. Measured ceiling on JDK 25:
+  9,416 elements (6.96 bytes each). The tool caps at 8,192 to stay clear of it
+  and tells you to use `-b64`.
+- **The Base64 path changes the constant's type at 49,134 bytes.** A single
+  Java string constant cannot hold more than 65,534 characters, so up to that
+  payload size the constant is a `String`, and beyond it a `String[]`. Consumer
+  code has to match the shape — see
+  [`doc/output-format.md`](doc/output-format.md#java-的-base64-有两种形态消费端必读).
+- **Nothing modern is required.** The generated source compiles unchanged with
+  `--release 8` through `--release 25` (verified on Temurin 25.0.5), because it
+  uses plain string literals instead of text blocks.
+- **Decoders are mostly in the JDK**: Base64, AES (CTR/CBC) and raw DEFLATE are
+  standard library; only Zstandard needs a third-party library such as
+  `com.github.luben:zstd-jni`.
 
 ## 📦 Generated data and metadata
 
