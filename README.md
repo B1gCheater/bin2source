@@ -135,17 +135,3 @@ input file → compression (optional) → encryption (optional) → Base64 text 
 To recover the original bytes, reverse the enabled steps: Base64-decode, decrypt, then decompress. The tool generates the data and metadata, but does not generate decryption or decompression functions. The required decoder depends on the options selected and the target language.
 
 Generated source uses ASCII text (a valid UTF-8 subset), regardless of the input file's contents.
-
-## 🧪 Development checks
-
-```sh
-go test ./src/...
-python test/roundtrip.py test/logo.png
-```
-
-The round-trip script generates and runs the output with available language toolchains, then compares the recovered bytes with the input. When a C or C++ compiler is unavailable, it attempts a syntax-only check; other missing toolchains are reported as skipped. Encryption and compression are also checked with independent implementations when the required Python packages or command-line tools are available.
-
-## 📄 Documentation
-
-- [`doc/output-format.md`](doc/output-format.md) describes the generated constants, comments, and decoding order.
-- [`doc/README.md`](doc/README.md) contains detailed usage notes and examples.
